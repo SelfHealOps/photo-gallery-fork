@@ -14,9 +14,11 @@ namespace NETPhotoGallery.Services
     {
         private readonly TableClient _tableClient;
         private const string TableName = "imagelikes";
+        private readonly ILogger<ImageLikeService> _logger;
 
-        public ImageLikeService(IConfiguration configuration)
+        public ImageLikeService(IConfiguration configuration, ILogger<ImageLikeService> logger)
         {
+            _logger = logger;
             var connectionString = configuration.GetValue<string>("StorageConnectionString");
             var tableServiceClient = new TableServiceClient(connectionString);
             tableServiceClient.CreateTableIfNotExists(TableName);
@@ -27,11 +29,12 @@ namespace NETPhotoGallery.Services
         {
             try
             {
-                var response = await _tableClient.GetEntityAsync<ImageLike>("images", imageId);
+                var response = await _tableClient.GetEntityAsync<ImageLike>(imageId, "images");
                 return response.Value.LikeCount;
             }
-            catch (Azure.RequestFailedException)
+            catch (Azure.RequestFailedException ex)
             {
+                _logger.LogError(ex, "Failed to get likes for image {ImageId}", imageId);
                 return 0;
             }
         }
@@ -40,12 +43,12 @@ namespace NETPhotoGallery.Services
         {
             var results = new Dictionary<string, int>();
             var queryResults = _tableClient.QueryAsync<ImageLike>(filter: $"PartitionKey eq 'images'");
-            
+
             await foreach (var like in queryResults)
             {
                 results[like.RowKey] = like.LikeCount;
             }
-            
+
             return results;
         }
 
