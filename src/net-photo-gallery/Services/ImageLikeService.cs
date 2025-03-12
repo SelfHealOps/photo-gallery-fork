@@ -29,16 +29,17 @@ namespace NETPhotoGallery.Services
         {
             try
             {
+                // Ensure the table exists before trying to access it
                 var response = await _tableClient.GetEntityAsync<ImageLike>("images", imageId);
                 return response.Value.LikeCount;
             }
-            catch (Azure.RequestFailedException ex) when (ex.Status == 404)
+            catch (Azure.RequestFailedException ex) when (ex.Status == 404 || ex.ErrorCode == "ResourceNotFound")
             {
                 // Entity doesn't exist yet, which is normal for new images
                 _logger.LogInformation("No likes found for image {ImageId}", imageId);
                 return 0;
             }
-            catch (Azure.RequestFailedException ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to get likes for image {ImageId}", imageId);
                 return 0;
@@ -72,9 +73,15 @@ namespace NETPhotoGallery.Services
                 var existingLike = await _tableClient.GetEntityAsync<ImageLike>("images", imageId);
                 like.LikeCount = existingLike.Value.LikeCount + 1;
             }
-            catch (Azure.RequestFailedException)
+            catch (Azure.RequestFailedException ex) when (ex.Status == 404 || ex.ErrorCode == "ResourceNotFound")
             {
                 // Entity doesn't exist, use default count of 1
+                _logger.LogInformation("Creating new like entry for image {ImageId}", imageId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error checking existing likes for image {ImageId}", imageId);
+                // Continue with default count of 1
             }
 
             await _tableClient.UpsertEntityAsync(like);
