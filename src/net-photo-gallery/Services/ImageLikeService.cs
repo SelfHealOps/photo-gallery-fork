@@ -21,16 +21,34 @@ namespace NETPhotoGallery.Services
             _logger = logger;
             var connectionString = configuration.GetValue<string>("StorageConnectionString");
             var tableServiceClient = new TableServiceClient(connectionString);
-            tableServiceClient.CreateTableIfNotExists(TableName);
+            
+            // Ensure the table exists
+            try
+            {
+                tableServiceClient.CreateTableIfNotExists(TableName);
+                _logger.LogInformation("Table {TableName} created or already exists", TableName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to create table {TableName}", TableName);
+            }
+            
             _tableClient = tableServiceClient.GetTableClient(TableName);
         }
 
         public async Task<int> GetLikesAsync(string imageId)
         {
+            if (string.IsNullOrEmpty(imageId))
+            {
+                _logger.LogWarning("GetLikesAsync called with null or empty imageId");
+                return 0;
+            }
+
             try
             {
-                // Ensure the table exists before trying to access it
+                // Try to get the entity
                 var response = await _tableClient.GetEntityAsync<ImageLike>("images", imageId);
+                _logger.LogInformation("Found likes for image {ImageId}: {LikeCount}", imageId, response.Value.LikeCount);
                 return response.Value.LikeCount;
             }
             catch (Azure.RequestFailedException ex) when (ex.Status == 404 || ex.ErrorCode == "ResourceNotFound")
@@ -41,7 +59,7 @@ namespace NETPhotoGallery.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to get likes for image {ImageId}", imageId);
+                _logger.LogError(ex, "Failed to get likes for image {ImageId}: {ErrorMessage}", imageId, ex.Message);
                 return 0;
             }
         }
@@ -49,11 +67,21 @@ namespace NETPhotoGallery.Services
         public async Task<Dictionary<string, int>> GetAllLikesAsync()
         {
             var results = new Dictionary<string, int>();
-            var queryResults = _tableClient.QueryAsync<ImageLike>(filter: $"PartitionKey eq 'images'");
-
-            await foreach (var like in queryResults)
+            
+            try
             {
-                results[like.RowKey] = like.LikeCount;
+                var queryResults = _tableClient.QueryAsync<ImageLike>(filter: $"PartitionKey eq 'images'");
+
+                await foreach (var like in queryResults)
+                {
+                    results[like.RowKey] = like.LikeCount;
+                }
+                
+                _logger.LogInformation("Retrieved {Count} like records from table", results.Count);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to query likes from table");
             }
 
             return results;
@@ -61,6 +89,12 @@ namespace NETPhotoGallery.Services
 
         public async Task AddLikeAsync(string imageId)
         {
+            if (string.IsNullOrEmpty(imageId))
+            {
+                _logger.LogWarning("AddLikeAsync called with null or empty imageId");
+                return;
+            }
+
             var like = new ImageLike
             {
                 PartitionKey = "images",
@@ -70,8 +104,10 @@ namespace NETPhotoGallery.Services
 
             try
             {
+                // Try to get existing entity
                 var existingLike = await _tableClient.GetEntityAsync<ImageLike>("images", imageId);
                 like.LikeCount = existingLike.Value.LikeCount + 1;
+                _logger.LogInformation("Updating like count for image {ImageId} to {LikeCount}", imageId, like.LikeCount);
             }
             catch (Azure.RequestFailedException ex) when (ex.Status == 404 || ex.ErrorCode == "ResourceNotFound")
             {
@@ -80,11 +116,19 @@ namespace NETPhotoGallery.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error checking existing likes for image {ImageId}", imageId);
+                _logger.LogError(ex, "Error checking existing likes for image {ImageId}: {ErrorMessage}", imageId, ex.Message);
                 // Continue with default count of 1
             }
 
-            await _tableClient.UpsertEntityAsync(like);
+            try
+            {
+                await _tableClient.UpsertEntityAsync(like);
+                _logger.LogInformation("Successfully saved like for image {ImageId}", imageId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to save like for image {ImageId}: {ErrorMessage}", imageId, ex.Message);
+            }
         }
     }
 }
