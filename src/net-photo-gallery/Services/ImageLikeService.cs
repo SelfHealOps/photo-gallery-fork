@@ -44,8 +44,9 @@ namespace NETPhotoGallery.Services
             var results = new Dictionary<string, int>();
             try
             {
-                // Use the proper filter syntax for Azure Table Storage
-                var queryResults = _tableClient.QueryAsync<ImageLike>(e => e.PartitionKey == "images");
+                // Use string-based filter syntax instead of LINQ expression
+                string filter = $"PartitionKey eq 'images'";
+                var queryResults = _tableClient.QueryAsync<ImageLike>(filter);
 
                 await foreach (var like in queryResults)
                 {
