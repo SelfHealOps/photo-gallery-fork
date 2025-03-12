@@ -29,8 +29,14 @@ namespace NETPhotoGallery.Services
         {
             try
             {
-                var response = await _tableClient.GetEntityAsync<ImageLike>(imageId, "images");
+                var response = await _tableClient.GetEntityAsync<ImageLike>("images", imageId);
                 return response.Value.LikeCount;
+            }
+            catch (Azure.RequestFailedException ex) when (ex.Status == 404)
+            {
+                // Entity doesn't exist yet, which is normal for new images
+                _logger.LogInformation("No likes found for image {ImageId}", imageId);
+                return 0;
             }
             catch (Azure.RequestFailedException ex)
             {
