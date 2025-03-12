@@ -23,13 +23,8 @@ namespace NETPhotoGallery.Controllers
         {
             try
             {
-                var allBlobsTask = _azureBlobService.ListAsync();
-                var allLikesTask = _imageLikeService.GetAllLikesAsync();
-                
-                await Task.WhenAll(allBlobsTask, allLikesTask);
-                
-                var allBlobs = await allBlobsTask;
-                var likesMap = await allLikesTask;
+                var allBlobs = await _azureBlobService.ListAsync();
+                var likesMap = await _imageLikeService.GetAllLikesAsync();
                 
                 var blobViewModels = allBlobs.Select(blob =>
                 {
