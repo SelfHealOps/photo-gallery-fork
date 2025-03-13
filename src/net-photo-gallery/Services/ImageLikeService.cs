@@ -20,9 +20,25 @@ namespace NETPhotoGallery.Services
         {
             _logger = logger;
             var connectionString = configuration.GetValue<string>("StorageConnectionString");
-            var tableServiceClient = new TableServiceClient(connectionString);
-            tableServiceClient.CreateTableIfNotExists(TableName);
-            _tableClient = tableServiceClient.GetTableClient(TableName);
+            
+            // Use TableClientOptions to ensure proper authentication
+            var options = new TableClientOptions
+            {
+                Retry = { MaxRetries = 3, Mode = Azure.Core.RetryMode.Exponential }
+            };
+            
+            var tableServiceClient = new TableServiceClient(connectionString, options);
+            
+            try
+            {
+                tableServiceClient.CreateTableIfNotExists(TableName);
+                _tableClient = tableServiceClient.GetTableClient(TableName);
+            }
+            catch (Azure.RequestFailedException ex)
+            {
+                _logger.LogError(ex, "Failed to initialize table client. Authentication error: {Message}", ex.Message);
+                throw;
+            }
         }
 
         public async Task<int> GetLikesAsync(string imageId)
