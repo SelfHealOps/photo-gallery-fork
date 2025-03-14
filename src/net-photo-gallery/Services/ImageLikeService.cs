@@ -42,7 +42,7 @@ namespace NETPhotoGallery.Services
         public async Task<Dictionary<string, int>> GetAllLikesAsync()
         {
             var results = new Dictionary<string, int>();
-            var queryResults = _tableClient.QueryAsync<ImageLike>(filter: $"PartitionKey eq images");
+            var queryResults = _tableClient.QueryAsync<ImageLike>(filter: $"PartitionKey eq 'images'");
 
             await foreach (var like in queryResults)
             {
