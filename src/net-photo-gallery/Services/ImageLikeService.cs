@@ -29,7 +29,7 @@ namespace NETPhotoGallery.Services
         {
             try
             {
-                var response = await _tableClient.GetEntityAsync<ImageLike>(imageId, "images");
+                var response = await _tableClient.GetEntityAsync<ImageLike>("images", imageId);
                 return response.Value.LikeCount;
             }
             catch (Azure.RequestFailedException ex)
