@@ -66,7 +66,6 @@ namespace NETPhotoGallery.Services
 				using (var stream = files[i].OpenReadStream())
 				{
 					await blob.UploadAsync(stream);
-
 				}
 			}
 		}
