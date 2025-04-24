@@ -25,22 +25,22 @@ namespace NETPhotoGallery.Controllers
             {
                 var allBlobsTask = _azureBlobService.ListAsync();
                 var allLikesTask = _imageLikeService.GetAllLikesAsync();
-                
+
                 await Task.WhenAll(allBlobsTask, allLikesTask);
-                
+
                 var allBlobs = await allBlobsTask;
                 var likesMap = await allLikesTask;
-                
+
                 var blobViewModels = allBlobs.Select(blob =>
                 {
                     var imageId = blob.Segments.Last();
-                    return new BlobViewModel 
-                    { 
-                        Uri = blob, 
-                        Likes = likesMap.GetValueOrDefault(imageId, 0) 
+                    return new BlobViewModel
+                    {
+                        Uri = blob,
+                        Likes = likesMap.GetValueOrDefault(imageId, 0)
                     };
                 }).ToList();
-                
+
                 return View(blobViewModels);
             }
             catch (Exception ex)
@@ -118,7 +118,7 @@ namespace NETPhotoGallery.Controllers
                 Response.StatusCode = 500; // set status code to 500
                 return View("Error");
             }
-        }        
+        }
 
         [HttpPost]
         public async Task<ActionResult> LikeImage(string imageId)
@@ -133,6 +133,49 @@ namespace NETPhotoGallery.Controllers
             {
                 _logger.LogError(ex, "Error in LikeImage method");
                 return Json(new { success = false, message = ex.Message });
+            }
+        }
+
+        public async Task<IActionResult> Statistics()
+        {
+            try
+            {
+                var blobs = await _azureBlobService.ListBlobInfoAsync();
+                var likesMap = await _imageLikeService.GetAllLikesAsync();
+                int totalImages = blobs.Count;
+                long totalDiskSpace = blobs.Sum(b => b.Size);
+                int totalLikes = likesMap.Values.Sum();
+                double averageImageSize = blobs.Average(b => (double)b.Size);
+
+                // Calculate uploads per day for last 30 days
+                var today = DateTime.UtcNow.Date;
+                var uploadsPerDay = Enumerable.Range(0, 30)
+                    .Select(offset => today.AddDays(-offset))
+                    .Select(date => new UploadCountPerDay
+                    {
+                        Date = date,
+                        Count = blobs.Count(b => b.CreatedOn.HasValue && b.CreatedOn.Value.UtcDateTime.Date == date)
+                    })
+                    .OrderBy(x => x.Date)
+                    .ToList();
+
+                var model = new StatisticsViewModel
+                {
+                    TotalImages = totalImages,
+                    TotalDiskSpace = totalDiskSpace,
+                    TotalLikes = totalLikes,
+                    UploadsPerDay = uploadsPerDay,
+                    AverageImageSize = averageImageSize // Pass average image size to the view model
+                };
+                return View(model);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in Statistics method");
+                ViewData["message"] = ex.Message;
+                ViewData["trace"] = ex.StackTrace;
+                Response.StatusCode = 500;
+                return View("Error");
             }
         }
 

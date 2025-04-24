@@ -1,0 +1,86 @@
+@model NETPhotoGallery.Models.StatisticsViewModel
+@{
+    ViewData["Title"] = "Statistics";
+    string FormatBytes(long bytes)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB", "TB" };
+        double len = bytes;
+        int order = 0;
+        while (len >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            len = len / 1024;
+        }
+        return $"{len:0.##} {sizes[order]}";
+    }
+}
+<h2>Statistics</h2>
+<div class="row">
+    <div class="col-md-3">
+        <div class="card mb-3">
+            <div class="card-body">
+                <h5 class="card-title">Total Images</h5>
+                <p class="card-text display-4">@Model.TotalImages</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card mb-3">
+            <div class="card-body">
+                <h5 class="card-title">Total Disk Space Used</h5>
+                <p class="card-text display-4">@FormatBytes(Model.TotalDiskSpace)</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card mb-3">
+            <div class="card-body">
+                <h5 class="card-title">Total Likes</h5>
+                <p class="card-text display-4">@Model.TotalLikes</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card mb-3">
+            <div class="card-body">
+                <h5 class="card-title">Average Image Size</h5>
+                <p class="card-text display-4">@((Model.AverageImageSize / (1024 * 1024)).ToString("0.##")) MB</p>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="card mt-4">
+    <div class="card-body">
+        <h5 class="card-title">Images Uploaded Per Day (Last 30 Days)</h5>
+        <canvas id="uploadsChart" height="100"></canvas>
+    </div>
+</div>
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        const labels = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.UploadsPerDay.Select(x => x.Date.ToString("MM-dd"))));
+        const data = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.UploadsPerDay.Select(x => x.Count)));
+        const ctx = document.getElementById('uploadsChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Images Uploaded',
+                    data: data,
+                    backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        precision: 0
+                    }
+                }
+            }
+        });
+    </script>
+}

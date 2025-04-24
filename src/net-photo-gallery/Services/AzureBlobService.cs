@@ -1,6 +1,7 @@
 ﻿using Azure;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
+using NETPhotoGallery.Models;
 
 namespace NETPhotoGallery.Services
 {
@@ -10,6 +11,7 @@ namespace NETPhotoGallery.Services
 		Task UploadAsync(IFormFileCollection files);
 		Task DeleteAsync(string fileUri);
         Task DeleteAllAsync();
+        Task<List<NETPhotoGallery.Models.BlobInfo>> ListBlobInfoAsync();
     }
 
 	public class AzureBlobService : IAzureBlobService
@@ -64,21 +66,36 @@ namespace NETPhotoGallery.Services
 			{
 				var blob = blobContainer.GetBlobClient(GetRandomBlobName(files[i].FileName));
                 using var stream = files[i].OpenReadStream();
-				if (i > 0)
-				{
-					stream.Close();
-				}
                 await blob.UploadAsync(stream);
             }
 		}
 
-		/// <summary> 
-		/// string GetRandomBlobName(string filename): Generates a unique random file name to be uploaded  
-		/// </summary> 
+		/// <summary>
+		/// string GetRandomBlobName(string filename): Generates a unique random file name to be uploaded
+		/// </summary>
 		private string GetRandomBlobName(string filename)
 		{
 			string ext = Path.GetExtension(filename);
 			return string.Format("{0:10}_{1}{2}", DateTime.Now.Ticks, Guid.NewGuid(), ext);
 		}
-	}
+
+        public async Task<List<NETPhotoGallery.Models.BlobInfo>> ListBlobInfoAsync()
+        {
+            var blobInfos = new List<NETPhotoGallery.Models.BlobInfo>();
+            var blobContainer = await _azureBlobConnectionFactory.GetBlobContainer();
+
+            await foreach (var blob in blobContainer.GetBlobsAsync(BlobTraits.Metadata | BlobTraits.None))
+            {
+                var blobClient = blobContainer.GetBlobClient(blob.Name);
+                var props = await blobClient.GetPropertiesAsync();
+                blobInfos.Add(new NETPhotoGallery.Models.BlobInfo
+                {
+                    Name = blob.Name,
+                    Size = props.Value.ContentLength,
+                    CreatedOn = props.Value.CreatedOn
+                });
+            }
+            return blobInfos;
+        }
+    }
 }
