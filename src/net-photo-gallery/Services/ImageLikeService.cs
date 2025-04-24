@@ -42,11 +42,19 @@ namespace NETPhotoGallery.Services
         public async Task<Dictionary<string, int>> GetAllLikesAsync()
         {
             var results = new Dictionary<string, int>();
-            var queryResults = _tableClient.QueryAsync<ImageLike>(filter: $"PartitionKey eq images");
+            var queryResults = _tableClient.QueryAsync<ImageLike>(filter: $"PartitionKey eq 'images'");
 
-            await foreach (var like in queryResults)
+            try
             {
-                results[like.RowKey] = like.LikeCount;
+                await foreach (var like in queryResults)
+                {
+                    results[like.RowKey] = like.LikeCount;
+                }
+            }
+            catch (Azure.RequestFailedException ex)
+            {
+                _logger.LogError(ex, "Failed to query likes from table storage");
+                // Continue with empty results rather than failing the entire page load
             }
 
             return results;
