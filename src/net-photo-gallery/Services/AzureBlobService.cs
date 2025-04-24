@@ -63,13 +63,11 @@ namespace NETPhotoGallery.Services
 			for (int i = 0; i < files.Count; i++)
 			{
 				var blob = blobContainer.GetBlobClient(GetRandomBlobName(files[i].FileName));
-                using var stream = files[i].OpenReadStream();
-				if (i > 0)
+				using (var stream = files[i].OpenReadStream())
 				{
-					stream.Close();
+					await blob.UploadAsync(stream);
 				}
-                await blob.UploadAsync(stream);
-            }
+			}
 		}
 
 		/// <summary> 
