@@ -145,7 +145,7 @@ namespace NETPhotoGallery.Controllers
                 int totalImages = blobs.Count;
                 long totalDiskSpace = blobs.Sum(b => b.Size);
                 int totalLikes = likesMap.Values.Sum();
-                double averageImageSize = blobs.Average(b => (double)b.Size);
+                double averageImageSize = blobs.Any() ? blobs.Average(b => (double)b.Size) : 0;
 
                 // Calculate uploads per day for last 30 days
                 var today = DateTime.UtcNow.Date;
