@@ -21,7 +21,37 @@ namespace NETPhotoGallery.Services
             _logger = logger;
             var connectionString = configuration.GetValue<string>("StorageConnectionString");
             var tableServiceClient = new TableServiceClient(connectionString);
-            tableServiceClient.CreateTableIfNotExists(TableName);
+            
+            // Add retry logic for table creation with exponential backoff
+            int maxRetries = 5;
+            int retryDelayMs = 1000; // Start with 1 second
+            
+            for (int attempt = 1; attempt <= maxRetries; attempt++)
+            {
+                try
+                {
+                    tableServiceClient.CreateTableIfNotExists(TableName);
+                    break; // Success, exit the retry loop
+                }
+                catch (Azure.RequestFailedException ex) when (
+                    ex.Status == 409 && 
+                    ex.ErrorCode == "TableBeingDeleted")
+                {
+                    if (attempt == maxRetries)
+                    {
+                        _logger.LogError(ex, "Failed to create table after {Attempts} attempts. Table is being deleted.", maxRetries);
+                        throw; // Rethrow after max retries
+                    }
+                    
+                    int delay = retryDelayMs * attempt;
+                    _logger.LogWarning("Table {TableName} is being deleted. Retrying in {Delay}ms (Attempt {Attempt}/{MaxRetries})...", 
+                        TableName, delay, attempt, maxRetries);
+                    
+                    // Wait before retrying
+                    System.Threading.Thread.Sleep(delay);
+                }
+            }
+            
             _tableClient = tableServiceClient.GetTableClient(TableName);
         }
 
@@ -42,11 +72,27 @@ namespace NETPhotoGallery.Services
         public async Task<Dictionary<string, int>> GetAllLikesAsync()
         {
             var results = new Dictionary<string, int>();
-            var queryResults = _tableClient.QueryAsync<ImageLike>(filter: $"PartitionKey eq 'images'");
-
-            await foreach (var like in queryResults)
+            
+            try
             {
-                results[like.RowKey] = like.LikeCount;
+                var queryResults = _tableClient.QueryAsync<ImageLike>(filter: $"PartitionKey eq 'images'");
+
+                await foreach (var like in queryResults)
+                {
+                    results[like.RowKey] = like.LikeCount;
+                }
+            }
+            catch (Azure.RequestFailedException ex) when (
+                ex.Status == 409 && 
+                ex.ErrorCode == "TableBeingDeleted")
+            {
+                _logger.LogWarning("Table {TableName} is being deleted. Returning empty results.", TableName);
+                // Return empty results instead of failing when table is being deleted
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving likes from table {TableName}", TableName);
+                throw;
             }
 
             return results;
