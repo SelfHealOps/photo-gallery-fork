@@ -42,11 +42,20 @@ namespace NETPhotoGallery.Services
         public async Task<Dictionary<string, int>> GetAllLikesAsync()
         {
             var results = new Dictionary<string, int>();
-            var queryResults = _tableClient.QueryAsync<ImageLike>(filter: $"PartitionKey eq 'images'");
-
-            await foreach (var like in queryResults)
+            
+            try
             {
-                results[like.RowKey] = like.LikeCount;
+                var queryResults = _tableClient.QueryAsync<ImageLike>(filter: $"PartitionKey eq 'images'");
+
+                await foreach (var like in queryResults)
+                {
+                    results[like.RowKey] = like.LikeCount;
+                }
+            }
+            catch (Azure.RequestFailedException ex) when (ex.ErrorCode == "TableNotFound")
+            {
+                _logger.LogWarning("Table {TableName} not found. Creating table.", TableName);
+                await _tableClient.CreateIfNotExistsAsync();
             }
 
             return results;
