@@ -21,7 +21,7 @@ namespace NETPhotoGallery.Services
             _logger = logger;
             var connectionString = configuration.GetValue<string>("StorageConnectionString");
             var tableServiceClient = new TableServiceClient(connectionString);
-            tableServiceClient.CreateTableIfNotExists(TableName);
+            tableServiceClient.CreateTableIfNotExistsAsync(TableName).GetAwaiter().GetResult();
             _tableClient = tableServiceClient.GetTableClient(TableName);
         }
 
