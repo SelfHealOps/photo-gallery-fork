@@ -29,7 +29,10 @@ namespace NETPhotoGallery.Services
         {
             try
             {
-                var response = await _tableClient.GetEntityAsync<ImageLike>(imageId, "images");
+                // Ensure table exists before querying
+                await _tableClient.CreateIfNotExistsAsync();
+                
+                var response = await _tableClient.GetEntityAsync<ImageLike>("images", imageId);
                 return response.Value.LikeCount;
             }
             catch (Azure.RequestFailedException ex)
@@ -42,11 +45,23 @@ namespace NETPhotoGallery.Services
         public async Task<Dictionary<string, int>> GetAllLikesAsync()
         {
             var results = new Dictionary<string, int>();
-            var queryResults = _tableClient.QueryAsync<ImageLike>(filter: $"PartitionKey eq 'images'");
-
-            await foreach (var like in queryResults)
+            
+            try
             {
-                results[like.RowKey] = like.LikeCount;
+                // Ensure table exists before querying
+                await _tableClient.CreateIfNotExistsAsync();
+                
+                var queryResults = _tableClient.QueryAsync<ImageLike>(filter: $"PartitionKey eq 'images'");
+
+                await foreach (var like in queryResults)
+                {
+                    results[like.RowKey] = like.LikeCount;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving likes from table storage");
+                // Return empty dictionary rather than throwing
             }
 
             return results;
@@ -54,6 +69,9 @@ namespace NETPhotoGallery.Services
 
         public async Task AddLikeAsync(string imageId)
         {
+            // Ensure table exists before operating on it
+            await _tableClient.CreateIfNotExistsAsync();
+            
             var like = new ImageLike
             {
                 PartitionKey = "images",
