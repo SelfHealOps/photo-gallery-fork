@@ -51,6 +51,9 @@ namespace NETPhotoGallery.Services
                 // Ensure table exists before querying
                 await _tableClient.CreateIfNotExistsAsync();
                 
+                // Wait for the table to be fully created before querying
+                await Task.Delay(500); // Small delay to ensure table creation is propagated
+                
                 var queryResults = _tableClient.QueryAsync<ImageLike>(filter: $"PartitionKey eq 'images'");
 
                 await foreach (var like in queryResults)
